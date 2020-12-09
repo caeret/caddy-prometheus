@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"bufio"
 	"net"
 	"net/http"
 	"strconv"
@@ -28,7 +29,7 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	// Record response to get status code and size of the reply.
 	rw := httpserver.NewResponseRecorder(w)
 	// Get time to first write.
-	tw := &timedResponseWriter{ResponseWriter: rw}
+	tw := &timedResponseWriter{ResponseWriter: rw, Hijacker: rw}
 
 	status, err := next.ServeHTTP(tw, r)
 
@@ -99,6 +100,7 @@ func isIPv6(addr string) bool {
 type timedResponseWriter struct {
 	firstWrite time.Time
 	http.ResponseWriter
+	http.Hijacker
 }
 
 func (w *timedResponseWriter) didWrite() {
@@ -117,4 +119,9 @@ func (w *timedResponseWriter) WriteHeader(statuscode int) {
 	// just setting a status code and returning.
 	w.didWrite()
 	w.ResponseWriter.WriteHeader(statuscode)
+}
+
+func (w *timedResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	w.didWrite()
+	return w.Hijacker.Hijack()
 }
